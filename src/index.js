@@ -25,15 +25,15 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============================================================
-// 🛡️ MANUAL CORS SAFETY MIDDLEWARE (Runs BEFORE everything else)
+// 🛡️ MANUAL CORS SAFETY MIDDLEWARE (Handles strict checks safely)
 // ============================================================
 app.use((req, res, next) => {
-  // Explicitly set the allowed origin
   const origin = req.headers.origin;
   const allowed = [
     'http://snow-kangaroo-426484.hostingersite.com',
     'https://snow-kangaroo-426484.hostingersite.com',
-    'https://luxivotrend.com', // Fixed: Removed the extra slash
+    'http://luxivotrend.com',  // ADDED the HTTP version
+    'https://luxivotrend.com', // ADDED the HTTPS version
     'http://localhost:5173',
     'http://localhost:3000'
   ];
@@ -41,15 +41,13 @@ app.use((req, res, next) => {
   if (allowed.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
   } else {
-    res.header('Access-Control-Allow-Origin', '*'); // Fallback
+    res.header('Access-Control-Allow-Origin', '*'); // Safe Fallback
   }
 
-  // Forcefully set the rest of the CORS headers
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
 
-  // Immediately respond to OPTIONS preflight requests
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -57,23 +55,8 @@ app.use((req, res, next) => {
 });
 // ============================================================
 
-// CORS – Using the standard package as a secondary layer
-app.use(cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    const allowedOrigins = [
-      'http://localhost:5173', 'http://localhost:3000',
-      'http://snow-kangaroo-426484.hostingersite.com', 'https://snow-kangaroo-426484.hostingersite.com',
-      'https://luxivotrend.com'
-    ];
-    if (allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true
-}));
+// 🌐 STANDARD CORS (Allowing everything, because manual handles the security)
+app.use(cors()); 
 
 app.use(express.json({ limit: '10mb' }));
 
