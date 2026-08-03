@@ -1,17 +1,3 @@
-const app = express();
-
-// --- ADD THIS AT THE VERY TOP ---
-app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  next();
-});
-// ---------------------------------
-
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -46,7 +32,8 @@ app.use((req, res, next) => {
   const origin = req.headers.origin;
   const allowed = [
     'http://snow-kangaroo-426484.hostingersite.com',
-    'https:/luxivotrend.com/',
+    'https://snow-kangaroo-426484.hostingersite.com',
+    'https://luxivotrend.com', // Fixed: Removed the extra slash
     'http://localhost:5173',
     'http://localhost:3000'
   ];
@@ -76,7 +63,8 @@ app.use(cors({
     if (!origin) return callback(null, true);
     const allowedOrigins = [
       'http://localhost:5173', 'http://localhost:3000',
-      'http://snow-kangaroo-426484.hostingersite.com', 'https://snow-kangaroo-426484.hostingersite.com'
+      'http://snow-kangaroo-426484.hostingersite.com', 'https://snow-kangaroo-426484.hostingersite.com',
+      'https://luxivotrend.com'
     ];
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
