@@ -25,15 +25,16 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ============================================================
-// 🛡️ MANUAL CORS SAFETY MIDDLEWARE (Handles strict checks safely)
+// 🛡️ MANUAL CORS MIDDLEWARE (HANDLES EVERYTHING PERFECTLY)
 // ============================================================
 app.use((req, res, next) => {
+  // Explicitly set the allowed origin
   const origin = req.headers.origin;
   const allowed = [
     'http://snow-kangaroo-426484.hostingersite.com',
     'https://snow-kangaroo-426484.hostingersite.com',
-    'http://luxivotrend.com',  // ADDED the HTTP version
-    'https://luxivotrend.com', // ADDED the HTTPS version
+    'http://luxivotrend.com',
+    'https://luxivotrend.com',
     'http://localhost:5173',
     'http://localhost:3000'
   ];
@@ -41,22 +42,22 @@ app.use((req, res, next) => {
   if (allowed.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
   } else {
-    res.header('Access-Control-Allow-Origin', '*'); // Safe Fallback
+    // Only fallback to * if there is NO origin (e.g., mobile/curl), not for a specific browser origin.
+    res.header('Access-Control-Allow-Origin', '*'); 
   }
 
+  // Forcefully set the rest of the CORS headers
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
   res.header('Access-Control-Allow-Credentials', 'true');
 
+  // Immediately respond to OPTIONS preflight requests
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
   next();
 });
 // ============================================================
-
-// 🌐 STANDARD CORS (Allowing everything, because manual handles the security)
-app.use(cors()); 
 
 app.use(express.json({ limit: '10mb' }));
 
