@@ -3,12 +3,12 @@ import { generateSlug } from '../utils/generateSlug.js';
 
 const prisma = new PrismaClient();
 
-// ===== GET all products =====
+// ===== GET all products (PUBLIC facing) =====
 export const getProducts = async (req, res) => {
   try {
     const {
       gender, category, subcategory, categoryGroup,
-      categorySlug, groupSlug, subSlug, // 👈 ADDED: Slugs from frontend URL
+      categorySlug, groupSlug, subSlug,
       search, isNew, isSale, isTrending,
       minPrice, maxPrice
     } = req.query;
@@ -76,6 +76,21 @@ export const getProducts = async (req, res) => {
     res.json({ success: true, data: products });
   } catch (error) {
     console.error('Get products error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ===== GET all products for ADMIN (Includes draft & archived) =====
+export const getAdminProducts = async (req, res) => {
+  try {
+    const products = await prisma.product.findMany({
+      include: { variants: true, reviews: true },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    res.json({ success: true, data: products });
+  } catch (error) {
+    console.error('Get admin products error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
