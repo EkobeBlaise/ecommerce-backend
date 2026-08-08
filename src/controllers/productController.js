@@ -8,16 +8,41 @@ export const getProducts = async (req, res) => {
   try {
     const {
       gender, category, subcategory, categoryGroup,
+      categorySlug, groupSlug, subSlug, // 👈 ADDED: Slugs from frontend URL
       search, isNew, isSale, isTrending,
       minPrice, maxPrice
     } = req.query;
 
     const where = { status: 'active' };
 
-    if (gender) where.gender = gender;
+    // 1. 🛡️ RESOLVE SLUGS TO DATABASE NAMES
+    let resolvedCategory = null, resolvedGroup = null, resolvedSub = null;
+
+    if (categorySlug) {
+      const cat = await prisma.category.findUnique({ where: { slug: categorySlug } });
+      if (cat) resolvedCategory = cat.name;
+    }
+    if (groupSlug) {
+      const grp = await prisma.categoryGroup.findUnique({ where: { slug: groupSlug } });
+      if (grp) resolvedGroup = grp.name;
+    }
+    if (subSlug) {
+      const sub = await prisma.subCategory.findUnique({ where: { slug: subSlug } });
+      if (sub) resolvedSub = sub.name;
+    }
+
+    // 2. APPLY THE RESOLVED NAMES TO WHERE CLAUSE
+    if (resolvedCategory) where.category = resolvedCategory;
+    if (resolvedGroup) where.categoryGroup = resolvedGroup;
+    if (resolvedSub) where.subcategory = resolvedSub;
+
+    // 3. LEGACY SUPPORT (in case frontend sends names directly)
     if (category) where.category = category;
     if (subcategory) where.subcategory = subcategory;
     if (categoryGroup) where.categoryGroup = categoryGroup;
+
+    // 4. REMAINING FILTERS
+    if (gender) where.gender = gender;
     if (isNew === 'true') where.isNew = true;
     if (isSale === 'true') where.isSale = true;
     if (isTrending === 'true') where.isTrending = true;
