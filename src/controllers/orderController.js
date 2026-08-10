@@ -116,7 +116,6 @@ export const getOrderById = async (req, res) => {
 export const createOrder = async (req, res) => {
   try {
     const orderData = req.body;
-    // Expects: userId, isGuest, guestEmail, items, subtotal, shipping, tax, discount, total, status, shippingAddress, billingAddress, paymentMethod, paymentStatus, notes, etc.
     const {
       userId, isGuest, guestEmail,
       items, subtotal, shipping, tax, discount, total,
@@ -131,7 +130,7 @@ export const createOrder = async (req, res) => {
     const order = await prisma.order.create({
       data: {
         orderNumber,
-        userId: userId || null,
+        // ✅ FIX: Removed 'userId: userId || null,' - Prisma uses the relation `user` to link accounts.
         user: userId ? { connect: { id: userId } } : undefined,
         subtotal: subtotal || 0,
         shippingCost: shipping || 0,
@@ -158,8 +157,6 @@ export const createOrder = async (req, res) => {
       },
       include: { items: true },
     });
-
-    // If userId is provided, update user's order count etc. (optional)
 
     const formatted = {
       id: order.id,
@@ -190,25 +187,6 @@ export const createOrder = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
-
-// ===== UPDATE order status =====
-export const updateOrderStatus = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status, note } = req.body;
-    if (!status) return res.status(400).json({ success: false, message: 'Status is required' });
-    const order = await prisma.order.update({
-      where: { id },
-      data: { status },
-      include: { items: true },
-    });
-    // Optionally add status history (could add a separate model)
-    res.json({ success: true, data: order });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
 // ===== UPDATE payment status =====
 export const updatePaymentStatus = async (req, res) => {
   try {
