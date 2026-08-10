@@ -5,16 +5,15 @@ const prisma = new PrismaClient();
 
 const createTransporter = () => {
   return nodemailer.createTransport({
-    // ✅ SWITCHED BACK TO GMAIL SMTP
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true, // Gmail requires strict SSL on Port 465
+    port: parseInt(process.env.SMTP_PORT) || 587, // Reads port 587
+    secure: process.env.SMTP_SECURE === 'true',   // Reads secure: false
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS, // Your 16-char Google App Password
+      pass: process.env.SMTP_PASS,
     },
-    // 🛡️ Force IPv4 to bypass Render's IPv6 ENETUNREACH block
-    family: 4,
+    // 🛡️ THE MAGIC FIX FOR RENDER
+    family: 4, // Forces IPv4 to bypass Render's ENETUNREACH block
     tls: {
       rejectUnauthorized: false,
     },
@@ -23,7 +22,6 @@ const createTransporter = () => {
 
 export const sendEmail = async (to, subject, html, template, metadata = {}) => {
   try {
-    // Save to database first (pending status)
     const emailRecord = await prisma.email.create({
       data: {
         template,
@@ -35,39 +33,29 @@ export const sendEmail = async (to, subject, html, template, metadata = {}) => {
       },
     });
 
-    // Send via SMTP
     const transporter = createTransporter();
     await transporter.sendMail({
-      from: process.env.SMTP_FROM || 'support@luxivotrend.com',
+      from: process.env.SMTP_FROM || 'noreply@Luxivotrend.com',
       to,
       subject,
       html,
     });
 
-    // Update status to sent
     await prisma.email.update({
       where: { id: emailRecord.id },
-      data: {
-        status: 'sent',
-        sentAt: new Date(),
-      },
+      data: { status: 'sent', sentAt: new Date() },
     });
 
     return { success: true, emailId: emailRecord.id };
   } catch (error) {
-    // Bulletproof error handling
     try {
       await prisma.email.updateMany({
         where: { subject, to, status: 'pending' },
-        data: {
-          status: 'failed',
-          error: error.message || 'Unknown error',
-        },
+        data: { status: 'failed', error: error.message || 'Unknown error' },
       });
     } catch (dbError) {
       console.error('Failed to update email status to failed:', dbError);
     }
-    
     console.error('Email send error:', error);
     return { success: false, error: error.message };
   }
