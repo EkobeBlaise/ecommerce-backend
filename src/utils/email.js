@@ -5,15 +5,13 @@ const prisma = new PrismaClient();
 
 const createTransporter = () => {
   return nodemailer.createTransport({
-    // ✅ LOCKED TO HOSTINGER SMTP (No Gmail fallback)
     host: process.env.SMTP_HOST || 'smtp.hostinger.com',
     port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true, // Port 465 requires SSL/TLS
+    secure: true,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    // ✅ Force IPv4 to prevent Render's ENETUNREACH block
     family: 4,
     tls: {
       rejectUnauthorized: false,
@@ -55,14 +53,20 @@ export const sendEmail = async (to, subject, html, template, metadata = {}) => {
 
     return { success: true, emailId: emailRecord.id };
   } catch (error) {
-    // Update status to failed
-    await prisma.email.updateMany({
-      where: { subject, to, status: 'pending' },
-      data: {
-        status: 'failed',
-        error: error.message || 'Unknown error',
-      },
-    });
+    // 🚀 CRITICAL FIX: Wrap the DB update in a try/catch to prevent a 500 crash
+    try {
+      await prisma.email.updateMany({
+        where: { subject, to, status: 'pending' },
+        data: {
+          status: 'failed',
+          error: error.message || 'Unknown error',
+        },
+      });
+    } catch (dbError) {
+      // If the database update fails, we just log it and move on
+      console.error('Failed to update email status to failed:', dbError);
+    }
+    
     console.error('Email send error:', error);
     return { success: false, error: error.message };
   }
@@ -70,7 +74,7 @@ export const sendEmail = async (to, subject, html, template, metadata = {}) => {
 
 // Email templates
 export const getTemplate = (template, data) => {
-  const baseUrl = process.env.FRONTEND_URL || 'https://luxivotrend.com'; // ✅ Updated fallback URL
+  const baseUrl = process.env.FRONTEND_URL || 'https://luxivotrend.com';
 
   const templates = {
     order_confirmation: {
@@ -79,7 +83,7 @@ export const getTemplate = (template, data) => {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
           <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
-              <h1 style="color: #295644; margin: 0;">🎉 Order Confirmed!</h1>
+              <h1 style="color: #ec4899; margin: 0;">🎉 Order Confirmed!</h1>
               <p style="color: #6b7280; margin: 8px 0 0;">Thank you for your order</p>
             </div>
             <div style="padding: 20px 0;">
@@ -98,11 +102,10 @@ export const getTemplate = (template, data) => {
               `).join('')}
             </div>
             <div style="margin-top: 20px; text-align: center;">
-              <a href="${baseUrl}/order-confirmation/${data.orderId}" style="background: #295644; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">View Order</a>
+              <a href="${baseUrl}/order-confirmation/${data.orderId}" style="background: #ec4899; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">View Order</a>
             </div>
             <p style="color: #6b7280; text-align: center; font-size: 14px; margin-top: 20px;">
-              <!-- ✅ FIXED: Replaced hardcoded email -->
-              Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #295644;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
+              Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #ec4899;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
             </p>
           </div>
         </div>
@@ -127,7 +130,6 @@ export const getTemplate = (template, data) => {
               <a href="${baseUrl}/track-order?orderId=${data.orderId}" style="background: #8b5cf6; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Track Order</a>
             </div>
             <p style="color: #6b7280; text-align: center; font-size: 14px; margin-top: 20px;">
-              <!-- ✅ FIXED: Replaced hardcoded email -->
               Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #8b5cf6;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
             </p>
           </div>
@@ -162,7 +164,7 @@ export const getTemplate = (template, data) => {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
           <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
-              <h1 style="color: #295644; margin: 0;">👋 Welcome to Luxe Wardrobe</h1>
+              <h1 style="color: #ec4899; margin: 0;">👋 Welcome to Luxe Wardrobe</h1>
               <p style="color: #6b7280; margin: 8px 0 0;">We're excited to have you</p>
             </div>
             <div style="padding: 20px 0;">
@@ -176,11 +178,10 @@ export const getTemplate = (template, data) => {
               </ul>
             </div>
             <div style="margin: 20px 0; text-align: center;">
-              <a href="${baseUrl}/products" style="background: #295644; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Start Shopping</a>
+              <a href="${baseUrl}/products" style="background: #ec4899; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Start Shopping</a>
             </div>
             <p style="color: #6b7280; text-align: center; font-size: 14px; margin-top: 20px;">
-              <!-- ✅ FIXED: Replaced hardcoded email -->
-              Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #295644;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
+              Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #ec4899;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
             </p>
           </div>
         </div>
@@ -224,7 +225,7 @@ export const getTemplate = (template, data) => {
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
           <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
-              <h1 style="color: #295644; margin: 0;">📧 Verify Your Email</h1>
+              <h1 style="color: #ec4899; margin: 0;">📧 Verify Your Email</h1>
               <p style="color: #6b7280; margin: 8px 0 0;">Please confirm your email address</p>
             </div>
             <div style="padding: 20px 0;">
@@ -232,7 +233,7 @@ export const getTemplate = (template, data) => {
               <p style="color: #374151;">Thank you for signing up! Please click the button below to verify your email address:</p>
             </div>
             <div style="margin: 20px 0; text-align: center;">
-              <a href="${data.verifyLink}" style="background: #295644; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Verify Email</a>
+              <a href="${data.verifyLink}" style="background: #ec4899; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Verify Email</a>
             </div>
             <p style="color: #6b7280; font-size: 14px;">This link will expire in 24 hours.</p>
             <p style="color: #6b7280; font-size: 14px;">If you didn't create an account, please ignore this email.</p>
