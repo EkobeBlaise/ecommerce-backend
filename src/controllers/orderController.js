@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 // Helper: Generate order number
 const generateOrderNumber = () => {
-  return 'ORD-' + Date.now().toString().slice(-6) '-' + Math.random().toString(36).substr(2, 4).toUpperCase();
+  return 'ORD-' + Date.now().toString().slice(-6) + '-' + Math.random().toString(36).substr(2, 4).toUpperCase();
 };
 
 // ===== GET all orders (with filters) =====
@@ -124,7 +124,6 @@ export const createOrder = async (req, res) => {
 
     const orderNumber = generateOrderNumber();
 
-    // ✅ FIX: REMOVED `userId: userId || null` as Prisma uses the relation `user` below.
     const order = await prisma.order.create({
       data: {
         orderNumber,
@@ -185,7 +184,7 @@ export const createOrder = async (req, res) => {
   }
 };
 
-// ===== UPDATE order status (THIS WAS MISSING) =====
+// ===== UPDATE order status =====
 export const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
