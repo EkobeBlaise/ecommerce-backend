@@ -4,17 +4,16 @@ dotenv.config();
 
 const createTransporter = () => {
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_SECURE === 'true',
+    // 🚀 FIX FOR RENDER: Use the Gmail Relay host and SSL Port 465
+    host: process.env.SMTP_HOST || 'smtp-relay.gmail.com', 
+    port: parseInt(process.env.SMTP_PORT) || 465,
+    secure: true, // SSL/TLS for port 465 (bypasses IPv6 STARTTLS issues)
     auth: {
       user: process.env.SMTP_USER || 'your-email@gmail.com',
       pass: process.env.SMTP_PASS || 'your-app-password',
     },
-    // 🚀 RENDER IPv6 FIX:
-    family: 4, // Forces IPv4 to prevent ENETUNREACH errors
     tls: {
-      rejectUnauthorized: false, // Prevents certificate handshake errors on Render
+      rejectUnauthorized: false, // Prevents certificate handshake errors
     },
   });
 };
