@@ -4,17 +4,21 @@ dotenv.config();
 
 const createTransporter = () => {
   return nodemailer.createTransport({
-    // 🚀 FIX FOR RENDER: Use the Gmail Relay host and SSL Port 465
-    host: process.env.SMTP_HOST || 'smtp-relay.gmail.com', 
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true, // SSL/TLS for port 465 (bypasses IPv6 STARTTLS issues)
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
-      user: process.env.SMTP_USER || 'your-email@gmail.com',
-      pass: process.env.SMTP_PASS || 'your-app-password',
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS, // This is your App Password
     },
+    // 🚀 FIX FOR RENDER: Force IPv4 and quick timeouts
+    family: 4, 
     tls: {
-      rejectUnauthorized: false, // Prevents certificate handshake errors
+      rejectUnauthorized: false,
     },
+    connectionTimeout: 5000, // 5 seconds fail-safe
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
   });
 };
 
@@ -42,7 +46,7 @@ export const sendPasswordResetEmail = async (email, name, resetLink) => {
   `;
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'noreply@luxivotrend.com',
+    from: process.env.SMTP_FROM || 'support@luxivotrend.com',
     to: email,
     subject: 'Password Reset Request',
     html,
