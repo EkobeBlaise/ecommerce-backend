@@ -5,15 +5,15 @@ const prisma = new PrismaClient();
 
 const createTransporter = () => {
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-    port: parseInt(process.env.SMTP_PORT) || 587, // Default to 587 if not set
-    // ✅ FIXED: Read from environment variable instead of hardcoding 'true'
-    secure: process.env.SMTP_SECURE === 'true', 
+    // ✅ SWITCHED BACK TO GMAIL SMTP
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT) || 465,
+    secure: true, // Gmail requires strict SSL on Port 465
     auth: {
       user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
+      pass: process.env.SMTP_PASS, // Your 16-char Google App Password
     },
-    // 🛡️ Render IPv6 bypass
+    // 🛡️ Force IPv4 to bypass Render's IPv6 ENETUNREACH block
     family: 4,
     tls: {
       rejectUnauthorized: false,
@@ -55,7 +55,7 @@ export const sendEmail = async (to, subject, html, template, metadata = {}) => {
 
     return { success: true, emailId: emailRecord.id };
   } catch (error) {
-    // 🚀 Bulletproof error handling
+    // Bulletproof error handling
     try {
       await prisma.email.updateMany({
         where: { subject, to, status: 'pending' },
