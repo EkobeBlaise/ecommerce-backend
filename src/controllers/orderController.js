@@ -3,7 +3,7 @@ const prisma = new PrismaClient();
 
 // Helper: Generate order number
 const generateOrderNumber = () => {
-  return 'ORD-' + Date.now().toString().slice(-6) + '-' + Math.random().toString(36).substr(2, 4).toUpperCase();
+  return 'ORD-' + Date.now().toString().slice(-6) '-' + Math.random().toString(36).substr(2, 4).toUpperCase();
 };
 
 // ===== GET all orders (with filters) =====
@@ -27,7 +27,6 @@ export const getOrders = async (req, res) => {
       skip: parseInt(offset),
     });
     const total = await prisma.order.count({ where });
-    // Format to match frontend Order type
     const formatted = orders.map(order => ({
       id: order.id,
       orderNumber: order.orderNumber,
@@ -123,14 +122,12 @@ export const createOrder = async (req, res) => {
       paymentMethod, paymentStatus, notes,
     } = orderData;
 
-    // Create order number
     const orderNumber = generateOrderNumber();
 
-    // Create order in DB
+    // ✅ FIX: REMOVED `userId: userId || null` as Prisma uses the relation `user` below.
     const order = await prisma.order.create({
       data: {
         orderNumber,
-        // ✅ FIX: Removed 'userId: userId || null,' - Prisma uses the relation `user` to link accounts.
         user: userId ? { connect: { id: userId } } : undefined,
         subtotal: subtotal || 0,
         shippingCost: shipping || 0,
@@ -187,6 +184,24 @@ export const createOrder = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// ===== UPDATE order status (THIS WAS MISSING) =====
+export const updateOrderStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, note } = req.body;
+    if (!status) return res.status(400).json({ success: false, message: 'Status is required' });
+    const order = await prisma.order.update({
+      where: { id },
+      data: { status },
+      include: { items: true },
+    });
+    res.json({ success: true, data: order });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // ===== UPDATE payment status =====
 export const updatePaymentStatus = async (req, res) => {
   try {
@@ -245,7 +260,7 @@ export const getOrderStats = async (req, res) => {
   }
 };
 
-// ===== GET dashboard stats (recent orders, today, etc.) =====
+// ===== GET dashboard stats =====
 export const getDashboardStats = async (req, res) => {
   try {
     const today = new Date();
@@ -268,7 +283,6 @@ export const getDashboardStats = async (req, res) => {
     const refunded = await prisma.order.count({ where: { status: 'refunded' } });
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
-    // Get recent orders (10)
     const recentOrders = await prisma.order.findMany({
       orderBy: { createdAt: 'desc' },
       take: 10,
@@ -306,7 +320,6 @@ export const getRecentOrders = async (req, res) => {
       take: limit,
       include: { items: true, user: { select: { firstName: true, lastName: true, email: true } } },
     });
-    // Format similarly
     const formatted = orders.map(order => ({
       id: order.id,
       orderNumber: order.orderNumber,

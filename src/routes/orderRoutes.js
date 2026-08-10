@@ -3,29 +3,26 @@ import {
   getOrders,
   getOrderById,
   createOrder,
-  updateOrderStatus,
+  updateOrderStatus, // <-- Make sure this matches the export
   updatePaymentStatus,
   deleteOrder,
   getOrderStats,
   getDashboardStats,
   getRecentOrders,
-  getOrdersByDateRange,
+  getOrdersByDateRange
 } from '../controllers/orderController.js';
 import { protect, admin } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// Public (create order) - no auth required
-router.post('/', createOrder);
-
-// Admin routes
+router.get('/', protect, admin, getOrders);
 router.get('/stats', protect, admin, getOrderStats);
 router.get('/dashboard', protect, admin, getDashboardStats);
 router.get('/recent', protect, admin, getRecentOrders);
 router.get('/date-range', protect, admin, getOrdersByDateRange);
-router.get('/', protect, admin, getOrders);
 router.get('/:id', protect, admin, getOrderById);
-router.put('/:id/status', protect, admin, updateOrderStatus);
+router.post('/', createOrder);
+router.put('/:id/status', protect, admin, updateOrderStatus); // <-- Matches the exported function
 router.put('/:id/payment', protect, admin, updatePaymentStatus);
 router.delete('/:id', protect, admin, deleteOrder);
 
