@@ -11,6 +11,11 @@ const createTransporter = () => {
       user: process.env.SMTP_USER || 'your-email@gmail.com',
       pass: process.env.SMTP_PASS || 'your-app-password',
     },
+    // 🚀 RENDER IPv6 FIX:
+    family: 4, // Forces IPv4 to prevent ENETUNREACH errors
+    tls: {
+      rejectUnauthorized: false, // Prevents certificate handshake errors on Render
+    },
   });
 };
 
@@ -32,13 +37,13 @@ export const sendPasswordResetEmail = async (email, name, resetLink) => {
         </div>
         <p style="color: #6b7280; font-size: 14px;">This link will expire in 1 hour.</p>
         <p style="color: #6b7280; font-size: 14px;">If you didn't request this, please ignore this email.</p>
-        <p style="color: #6b7280; font-size: 14px; margin-top: 20px; text-align: center;">Questions? Contact us at support@luxewardrobe.com</p>
+        <p style="color: #6b7280; font-size: 14px; margin-top: 20px; text-align: center;">Questions? Contact us at support@luxivotrend.com</p>
       </div>
     </div>
   `;
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'noreply@luxewardrobe.com',
+    from: process.env.SMTP_FROM || 'noreply@luxivotrend.com',
     to: email,
     subject: 'Password Reset Request',
     html,
