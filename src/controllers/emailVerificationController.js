@@ -44,10 +44,19 @@ export const sendVerification = async (req, res) => {
       },
     });
 
+    const userName = name || user.firstName || 'User';
     const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${token}`;
-    const template = getTemplate('email_verification', { name: name || user.firstName || 'User', verifyLink });
     
-    await sendEmail(email, template.subject, template.html(template.data || {}), 'email_verification', { name });
+    const template = getTemplate('email_verification', { name: userName, verifyLink });
+    
+    // ✅ FIX: Pass the actual data to the html renderer
+    await sendEmail(
+      email, 
+      template.subject, 
+      template.html({ name: userName, verifyLink }), 
+      'email_verification', 
+      { name: userName, verifyLink }
+    );
 
     res.json({
       success: true,
@@ -139,10 +148,19 @@ export const resendVerification = async (req, res) => {
       },
     });
 
+    const userName = user.firstName || 'User';
     const verifyLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/verify-email?token=${token}`;
-    const template = getTemplate('email_verification', { name: user.firstName || 'User', verifyLink });
     
-    await sendEmail(email, template.subject, template.html(template.data || {}), 'email_verification', { name: user.firstName });
+    const template = getTemplate('email_verification', { name: userName, verifyLink });
+    
+    // ✅ FIX: Pass the actual data to the html renderer
+    await sendEmail(
+      email, 
+      template.subject, 
+      template.html({ name: userName, verifyLink }), 
+      'email_verification', 
+      { name: userName, verifyLink }
+    );
 
     res.json({
       success: true,

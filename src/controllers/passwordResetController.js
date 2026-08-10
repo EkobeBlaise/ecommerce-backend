@@ -44,10 +44,19 @@ export const requestReset = async (req, res) => {
       },
     });
 
+    const userName = user.firstName || 'User';
     const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`;
-    const template = getTemplate('password_reset', { name: user.firstName || 'User', resetLink });
     
-    await sendEmail(email, template.subject, template.html(template.data || {}), 'password_reset', { name: user.firstName });
+    const template = getTemplate('password_reset', { name: userName, resetLink });
+    
+    // ✅ FIX: Pass the actual data to the html renderer
+    await sendEmail(
+      email, 
+      template.subject, 
+      template.html({ name: userName, resetLink }), 
+      'password_reset', 
+      { name: userName, resetLink }
+    );
 
     res.json({
       success: true,
