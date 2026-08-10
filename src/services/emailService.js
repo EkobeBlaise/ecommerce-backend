@@ -74,7 +74,7 @@ export const sendEmailVerification = async (email, name, verificationLink) => {
   await sendMail(email, 'Verify Your Email Address', html);
 };
 
-// 5. Order Confirmation
+// 5. Order Confirmation (Updated Footer)
 export const sendOrderConfirmationEmail = async (email, orderData) => {
   const itemsHtml = orderData.items.map(item => `
     <tr>
@@ -104,6 +104,10 @@ export const sendOrderConfirmationEmail = async (email, orderData) => {
         <div style="margin-top: 15px; text-align: right;">
           <p><strong>Total: $${orderData.total.toFixed(2)}</strong></p>
         </div>
+      </div>
+      <!-- ✅ FIXED: Pulls the contact email from your environment variable -->
+      <div style="text-align: center; padding-top: 15px; color: #6b7280; font-size: 13px;">
+        Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #3b82f6; text-decoration: none;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
       </div>
     </div>
   `;
