@@ -6,12 +6,14 @@ const prisma = new PrismaClient();
 const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-    port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true,
+    port: parseInt(process.env.SMTP_PORT) || 587, // Default to 587 if not set
+    // ✅ FIXED: Read from environment variable instead of hardcoding 'true'
+    secure: process.env.SMTP_SECURE === 'true', 
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    // 🛡️ Render IPv6 bypass
     family: 4,
     tls: {
       rejectUnauthorized: false,
@@ -53,7 +55,7 @@ export const sendEmail = async (to, subject, html, template, metadata = {}) => {
 
     return { success: true, emailId: emailRecord.id };
   } catch (error) {
-    // 🚀 CRITICAL FIX: Wrap the DB update in a try/catch to prevent a 500 crash
+    // 🚀 Bulletproof error handling
     try {
       await prisma.email.updateMany({
         where: { subject, to, status: 'pending' },
@@ -63,7 +65,6 @@ export const sendEmail = async (to, subject, html, template, metadata = {}) => {
         },
       });
     } catch (dbError) {
-      // If the database update fails, we just log it and move on
       console.error('Failed to update email status to failed:', dbError);
     }
     
@@ -72,7 +73,10 @@ export const sendEmail = async (to, subject, html, template, metadata = {}) => {
   }
 };
 
-// Email templates
+// ============================================================
+// EMAIL TEMPLATES (Kept exactly as you had them)
+// ============================================================
+
 export const getTemplate = (template, data) => {
   const baseUrl = process.env.FRONTEND_URL || 'https://luxivotrend.com';
 
