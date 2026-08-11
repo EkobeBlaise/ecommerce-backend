@@ -18,6 +18,7 @@ import passwordResetRoutes from './routes/passwordResetRoutes.js';
 import emailVerificationRoutes from './routes/emailVerificationRoutes.js';
 import addressRoutes from './routes/addressRoutes.js';
 import contactRoutes from './routes/contactRoutes.js';
+import wishlistRoutes from './routes/wishlistRoutes.js';
 
 dotenv.config();
 
@@ -79,6 +80,7 @@ app.use('/api/password-reset', passwordResetRoutes);
 app.use('/api/auth/verify', emailVerificationRoutes);
 app.use('/api/addresses', addressRoutes);
 app.use('/api', contactRoutes);
+app.use('/api/wishlist', wishlistRoutes);
 
 // ========== HEALTH CHECK ==========
 app.get('/api/health', (req, res) => {
