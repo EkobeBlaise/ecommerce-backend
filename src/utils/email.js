@@ -1,19 +1,22 @@
+import dns from 'dns';
 import nodemailer from 'nodemailer';
 import { PrismaClient } from '@prisma/client';
+
+// 🚀 FORCE NODE.JS TO RESOLVE IPv4 FIRST (Global)
+dns.setDefaultResultOrder('ipv4first');
 
 const prisma = new PrismaClient();
 
 const createTransporter = () => {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 587, // Reads port 587
-    secure: process.env.SMTP_SECURE === 'true',   // Reads secure: false
+    port: parseInt(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
-    // 🛡️ THE MAGIC FIX FOR RENDER
-    family: 4, // Forces IPv4 to bypass Render's ENETUNREACH block
+    family: 4, // Kept as a second layer of defense
     tls: {
       rejectUnauthorized: false,
     },
