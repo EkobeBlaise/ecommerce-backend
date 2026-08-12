@@ -1,172 +1,245 @@
 // src/services/emailService.js
+import dns from 'dns';
 import nodemailer from 'nodemailer';
+import { PrismaClient } from '@prisma/client';
 import dotenv from 'dotenv';
 dotenv.config();
 
-// 1. Create the Transporter using Hostinger's SMTP
+// 🚀 FORCE IPv4 FIRST (Global)
+dns.setDefaultResultOrder('ipv4first');
+
+const prisma = new PrismaClient();
+
 const createTransporter = () => {
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.hostinger.com',
-    port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true, // Port 465 requires strict SSL
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT) || 587,
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    family: 4, // Layer 2: Force IPv4 on socket
     tls: {
-      rejectUnauthorized: false, // Bypasses strict certificate checks on Render
+      rejectUnauthorized: false,
     },
   });
 };
 
-// 2. Internal Email Sender
-const sendMail = async (to, subject, html) => {
-  const transporter = createTransporter();
-  await transporter.sendMail({
-    from: process.env.SMTP_FROM || 'support@luxivotrend.com',
-    to,
-    subject,
-    html,
-  });
+export const sendEmail = async (to, subject, html, template, metadata = {}) => {
+  try {
+    const emailRecord = await prisma.email.create({
+      data: {
+        template,
+        to,
+        subject,
+        html,
+        status: 'pending',
+        metadata: JSON.stringify(metadata),
+      },
+    });
+
+    const transporter = createTransporter();
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM || 'noreply@Luxivotrend.com',
+      to,
+      subject,
+      html,
+    });
+
+    await prisma.email.update({
+      where: { id: emailRecord.id },
+      data: { status: 'sent', sentAt: new Date() },
+    });
+
+    return { success: true, emailId: emailRecord.id };
+  } catch (error) {
+    try {
+      await prisma.email.updateMany({
+        where: { subject, to, status: 'pending' },
+        data: { status: 'failed', error: error.message || 'Unknown error' },
+      });
+    } catch (dbError) {
+      console.error('Failed to update email status:', dbError);
+    }
+    console.error('Email send error:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 // ============================================================
-// HTML GENERATORS (Templates)
+// EMAIL TEMPLATES
 // ============================================================
 
-// 3. Password Reset
-export const sendPasswordResetEmail = async (email, name, resetLink) => {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
-      <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
-          <h1 style="color: #3b82f6; margin: 0;">🔐 Password Reset</h1>
+export const getTemplate = (template, data) => {
+  const baseUrl = process.env.FRONTEND_URL || 'https://luxivotrend.com';
+
+  const templates = {
+    order_confirmation: {
+      subject: `Order Confirmation - #${data?.orderId || 'N/A'}`,
+      html: (data) => `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
+          <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
+              <h1 style="color: #ec4899; margin: 0;">🎉 Order Confirmed!</h1>
+              <p style="color: #6b7280; margin: 8px 0 0;">Thank you for your order</p>
+            </div>
+            <div style="padding: 20px 0;">
+              <p style="color: #374151;"><strong>Order ID:</strong> #${data?.orderId || 'N/A'}</p>
+              <p style="color: #374151;"><strong>Date:</strong> ${new Date(data?.date).toLocaleString()}</p>
+              <p style="color: #374151;"><strong>Total:</strong> $${(data?.total || 0).toFixed(2)}</p>
+              <p style="color: #374151;"><strong>Payment Method:</strong> ${data?.paymentMethod || 'Not specified'}</p>
+            </div>
+            <div style="background: #f3f4f6; padding: 15px; border-radius: 8px; margin: 15px 0;">
+              <h3 style="color: #374151; margin: 0 0 10px;">Order Items</h3>
+              ${(data?.items || []).map((item) => `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
+                  <span style="color: #374151;">${item.name} x${item.quantity || 1}</span>
+                  <span style="color: #374151; font-weight: bold;">$${((item.price || 0) * (item.quantity || 1)).toFixed(2)}</span>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+              <a href="${baseUrl}/order-confirmation/${data?.orderId}" style="background: #ec4899; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">View Order</a>
+            </div>
+            <p style="color: #6b7280; text-align: center; font-size: 14px; margin-top: 20px;">
+              Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #ec4899;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
+            </p>
+          </div>
         </div>
-        <div style="padding: 20px 0;">
-          <p style="color: #374151;">Hello ${name},</p>
-          <p style="color: #374151;">We received a request to reset your password. Click the button below to create a new one:</p>
+      `,
+    },
+    shipping_update: {
+      subject: `Shipping Update - Order #${data?.orderId || 'N/A'}`,
+      html: (data) => `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
+          <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
+              <h1 style="color: #8b5cf6; margin: 0;">🚚 Order Shipped!</h1>
+              <p style="color: #6b7280; margin: 8px 0 0;">Your order is on its way</p>
+            </div>
+            <div style="padding: 20px 0;">
+              <p style="color: #374151;"><strong>Order ID:</strong> #${data?.orderId || 'N/A'}</p>
+              <p style="color: #374151;"><strong>Status:</strong> ${data?.status || 'Shipped'}</p>
+              ${data?.trackingNumber ? `<p style="color: #374151;"><strong>Tracking Number:</strong> ${data.trackingNumber}</p>` : ''}
+              <p style="color: #374151;"><strong>Estimated Delivery:</strong> ${data?.estimatedDelivery || '5-7 business days'}</p>
+            </div>
+            <div style="margin-top: 20px; text-align: center;">
+              <a href="${baseUrl}/track-order?orderId=${data?.orderId}" style="background: #8b5cf6; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Track Order</a>
+            </div>
+            <p style="color: #6b7280; text-align: center; font-size: 14px; margin-top: 20px;">
+              Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #8b5cf6;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
+            </p>
+          </div>
         </div>
-        <div style="margin: 20px 0; text-align: center;">
-          <a href="${resetLink}" style="background: #3b82f6; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Reset Password</a>
+      `,
+    },
+    password_reset: {
+      subject: 'Password Reset Request',
+      html: (data) => `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
+          <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
+              <h1 style="color: #3b82f6; margin: 0;">🔐 Password Reset</h1>
+              <p style="color: #6b7280; margin: 8px 0 0;">Reset your password securely</p>
+            </div>
+            <div style="padding: 20px 0;">
+              <p style="color: #374151;">Hello ${data?.name || 'User'},</p>
+              <p style="color: #374151;">We received a request to reset your password. Click the button below to create a new password:</p>
+            </div>
+            <div style="margin: 20px 0; text-align: center;">
+              <a href="${data?.resetLink}" style="background: #3b82f6; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Reset Password</a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">This link will expire in 1 hour.</p>
+            <p style="color: #6b7280; font-size: 14px;">If you didn't request this, please ignore this email.</p>
+          </div>
         </div>
-        <p style="color: #6b7280; font-size: 14px;">If you didn't request this, please ignore this email.</p>
-      </div>
-    </div>
-  `;
-  await sendMail(email, 'Password Reset Request', html);
-};
-
-// 4. Email Verification
-export const sendEmailVerification = async (email, name, verificationLink) => {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
-      <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <h1 style="text-align: center; color: #3b82f6;">✅ Verify Your Email</h1>
-        <p style="color: #374151; padding: 10px 0;">Hi ${name},</p>
-        <p style="color: #374151;">Please click the button below to confirm your email address:</p>
-        <div style="text-align: center; margin: 20px 0;">
-          <a href="${verificationLink}" style="background: #3b82f6; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Verify Email</a>
+      `,
+    },
+    welcome: {
+      subject: 'Welcome to Luxe Wardrobe!',
+      html: (data) => `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
+          <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
+              <h1 style="color: #ec4899; margin: 0;">👋 Welcome to Luxe Wardrobe</h1>
+              <p style="color: #6b7280; margin: 8px 0 0;">We're excited to have you</p>
+            </div>
+            <div style="padding: 20px 0;">
+              <p style="color: #374151;">Hello ${data?.name || 'Shopper'},</p>
+              <p style="color: #374151;">Thank you for joining Luxe Wardrobe! You now have access to:</p>
+              <ul style="color: #374151; padding-left: 20px;">
+                <li>🛍️ Exclusive deals and offers</li>
+                <li>📦 Order tracking</li>
+                <li>❤️ Save your favorite items</li>
+                <li>⭐ Earn loyalty points</li>
+              </ul>
+            </div>
+            <div style="margin: 20px 0; text-align: center;">
+              <a href="${baseUrl}/products" style="background: #ec4899; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Start Shopping</a>
+            </div>
+            <p style="color: #6b7280; text-align: center; font-size: 14px; margin-top: 20px;">
+              Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #ec4899;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
+            </p>
+          </div>
         </div>
-        <p style="color: #6b7280; font-size: 14px;">This link will expire in 24 hours.</p>
-      </div>
-    </div>
-  `;
-  await sendMail(email, 'Verify Your Email Address', html);
-};
-
-// 5. Order Confirmation (Updated Footer)
-export const sendOrderConfirmationEmail = async (email, orderData) => {
-  const itemsHtml = orderData.items.map(item => `
-    <tr>
-      <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${item.name}</td>
-      <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">x${item.quantity}</td>
-      <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">$${item.price.toFixed(2)}</td>
-    </tr>
-  `).join('');
-
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
-      <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <h2 style="color: #374151;">✅ Order Confirmation</h2>
-        <p>Thank you for your purchase! Order #${orderData.orderId}</p>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-          <thead>
-            <tr style="background: #f3f4f6;">
-              <th style="padding: 8px; text-align: left;">Item</th>
-              <th style="padding: 8px; text-align: right;">Qty</th>
-              <th style="padding: 8px; text-align: right;">Price</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
-        <div style="margin-top: 15px; text-align: right;">
-          <p><strong>Total: $${orderData.total.toFixed(2)}</strong></p>
+      `,
+    },
+    abandoned_cart: {
+      subject: "Don't Forget Your Items!",
+      html: (data) => `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
+          <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
+              <h1 style="color: #f59e0b; margin: 0;">🛒 Items Waiting for You!</h1>
+              <p style="color: #6b7280; margin: 8px 0 0;">Complete your purchase before they're gone</p>
+            </div>
+            <div style="padding: 20px 0;">
+              <p style="color: #374151;">Hello there,</p>
+              <p style="color: #374151;">You left some items in your cart. Don't miss out on these great finds!</p>
+              ${(data?.items || []).map((item) => `
+                <div style="display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid #e5e7eb;">
+                  ${item.image ? `<img src="${item.image}" alt="${item.name}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px;">` : ''}
+                  <div style="flex: 1;">
+                    <p style="color: #374151; margin: 0;">${item.name}</p>
+                    <p style="color: #6b7280; margin: 0; font-size: 14px;">$${(item.price || 0).toFixed(2)} x ${item.quantity || 1}</p>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+            <div style="margin: 20px 0; text-align: center;">
+              <a href="${baseUrl}/cart" style="background: #f59e0b; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Complete Purchase</a>
+            </div>
+            <p style="color: #6b7280; text-align: center; font-size: 14px; margin-top: 20px;">
+              Items are in high demand - don't wait!
+            </p>
+          </div>
         </div>
-      </div>
-      <!-- ✅ FIXED: Pulls the contact email from your environment variable -->
-      <div style="text-align: center; padding-top: 15px; color: #6b7280; font-size: 13px;">
-        Questions? Contact us at <a href="mailto:${process.env.SMTP_FROM || 'support@luxivotrend.com'}" style="color: #3b82f6; text-decoration: none;">${process.env.SMTP_FROM || 'support@luxivotrend.com'}</a>
-      </div>
-    </div>
-  `;
-  await sendMail(email, `Order Confirmation #${orderData.orderId}`, html);
-};
-
-// 6. Shipping Update
-export const sendShippingUpdateEmail = async (email, orderData) => {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
-      <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <h2 style="color: #374151;">🚚 Shipping Update</h2>
-        <p>Good news! Your order #${orderData.orderId} has been <strong>${orderData.status}</strong>.</p>
-        <p>Tracking Number: <strong>${orderData.trackingNumber}</strong></p>
-        <p>Estimated Delivery: ${orderData.estimatedDelivery}</p>
-      </div>
-    </div>
-  `;
-  await sendMail(email, `Shipping Update - Order #${orderData.orderId}`, html);
-};
-
-// 7. Welcome Email
-export const sendWelcomeEmail = async (email, name) => {
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
-      <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <h2 style="color: #374151;">🎉 Welcome to Luxivo Trend!</h2>
-        <p>Hi ${name},</p>
-        <p>Thanks for joining us! We're excited to have you on board.</p>
-        <p>Feel free to explore our latest collections and exclusive deals.</p>
-      </div>
-    </div>
-  `;
-  await sendMail(email, 'Welcome to Luxivo Trend', html);
-};
-
-// 8. Abandoned Cart
-export const sendAbandonedCartEmail = async (email, items) => {
-  const itemsHtml = items.map(item => `
-    <tr>
-      <td style="padding: 8px 0; border-bottom: 1px solid #eee;">${item.name}</td>
-      <td style="padding: 8px 0; border-bottom: 1px solid #eee; text-align: right;">$${item.price.toFixed(2)}</td>
-    </tr>
-  `).join('');
-
-  const html = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
-      <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <h2 style="color: #374151;">🛒 Don't Forget Your Items!</h2>
-        <p>You left these items in your cart. Complete your purchase now!</p>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 15px;">
-          <thead><tr><th style="padding: 8px; text-align: left;">Item</th><th style="padding: 8px; text-align: right;">Price</th></tr></thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-        <div style="text-align: center; margin-top: 20px;">
-          <a href="${process.env.FRONTEND_URL}/cart" style="background: #3b82f6; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Go to Cart</a>
+      `,
+    },
+    email_verification: {
+      subject: 'Verify Your Email Address',
+      html: (data) => `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9fafb;">
+          <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <div style="text-align: center; padding-bottom: 20px; border-bottom: 2px solid #f0f0f0;">
+              <h1 style="color: #ec4899; margin: 0;">📧 Verify Your Email</h1>
+              <p style="color: #6b7280; margin: 8px 0 0;">Please confirm your email address</p>
+            </div>
+            <div style="padding: 20px 0;">
+              <p style="color: #374151;">Hello ${data?.name || 'User'},</p>
+              <p style="color: #374151;">Thank you for signing up! Please click the button below to verify your email address:</p>
+            </div>
+            <div style="margin: 20px 0; text-align: center;">
+              <a href="${data?.verifyLink}" style="background: #ec4899; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; display: inline-block;">Verify Email</a>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">This link will expire in 24 hours.</p>
+            <p style="color: #6b7280; font-size: 14px;">If you didn't create an account, please ignore this email.</p>
+          </div>
         </div>
-      </div>
-    </div>
-  `;
-  await sendMail(email, 'Complete Your Purchase!', html);
+      `,
+    },
+  };
+
+  return templates[template] || null;
 };
